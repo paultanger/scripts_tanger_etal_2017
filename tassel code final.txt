@@ -1,0 +1,54 @@
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -FastqToTagCountPlugin -i allrawfastq -k finalkeyfile/finalkeyfile -e PstI-MspI -o finaltagcounts/ -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_fastqtotags.log
+
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -MergeMultipleTagCountPlugin -i finaltagcounts/ -o Merged201408070831.cnt -c 5 -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_mergemultiple.log
+
+Next step:
+
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -MergeMultipleTagCountPlugin -t -i finaltagcounts/ -o Merged201408070831.cnt.fq -c 5 -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_TagsToFastq.log
+
+Next step:
+
+bowtie2 -x ~/mydatadir/referencegenomes/ReferenceGenomes/bowtie2NB_lowercase/MSU7_nb_
+fortassel_lowercase -p 23 --very-sensitive-local -U Merged201408070831.cnt.fq -S Merged201408070831.sam
+
+Next step:
+
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -SAMConverterPlugin -i Merged201408070831.sam -o  topm/Merged20140807900__bowtie2.
+topm -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_bowtie2SAMtoTopm.log
+
+Next step:
+
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -FastqToTBTPlugin -i allrawfastq/ -k finalkeyfile/finalkeyfile -e PstI-MspI -o finaltbt/ -m finaltopm/Merged20140807900__bowtie2.topm -y -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_bowtie2fastqtoTBT.log
+
+Next step:
+
+ ~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -MergeTagsByTaxaFilesPlugin -i finaltbt/ -o finaltbt/MERGE_201408071429_bowtie2.tbt.byte -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_bowtie2mergeTBT.log
+
+Try with x option to merge short names..
+
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -DiscoverySNPCallerPlugin -i finaltbt/MERGE_201408071429_bowtie2.tbt.byte -y -m finaltopm/Merged20140807900__bowtie2.topm -mUpd finaltopm/Merged_20140807900__bowtie2UPDATE.topm -o finalhapmap/raw/Merged_20140807_bowtie2_chr+.hmp.txt -mnF 0.8 -mnMAF 0.1 -mnMAC 10 -sC 1 -eC 12 -endPlugin -runfork1 | tee logs/$(date +%Y%m%d%H%M%S)_bowtie2tagstoSNPs.log
+
+~/tassel4git/run_pipeline.pl -Xmx128g -fork1 -MergeDuplicateSNPsPlugin -hmp finalhapmap/raw/Merged_20140807_bowtie2_chr+.hmp.txt -o finalhapmap/merged/MergedSNPs_20140825_bowtie2_chr+.hmp.txt -misMat 0.05 -sC 1 -eC 12 -endPlugin -runfork1 | tee logs/$(date+Y%m%d%H%M%S)_mergedupSNPs.log
+
+Then merge taxa...
+
+But this doesn't work with tassel 4 … per jeff's email…
+
+Tassel Version: 3.0.165  Date: January 16, 2014
+
+~/tassel3git/run_pipeline.pl -Xmx128g -fork1 -MergeIdenticalTaxaPlugin -hmp finalhapmap/merged/MergedSNPs_20140825_bowtie2_chr+.hmp.txt -o finalhapmap/merged/MergedSNPsMergedTaxa_20140825_bowtie2_chr+.hmp.txt -hetFreq .75 -sC 1 -eC 12 -endPlugin -runfork1 | tee logs/$(date+%Y%m%d%H%M%S)_mergetaxa.log
+
+Import into tassel 4 gui…
+
+Filter out blanks
+Filter sites .3 - .7 
+~ 10k sites
+1391 lines (lots of parental dups)
+
+Filter lines with 10% of calls, and no more than .2 het
+1244 lines
+Export vcf and hmp … SNP not diploids..
+
+09/04/14
+
+Now need to bring this file into R and average the calls for the parents, and then run through the scripts...

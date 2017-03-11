@@ -1,0 +1,134 @@
+```{r models}
+# code written by Paul Tanger, Brook Moyers or John Lovell. Please cite appropriately.
+
+setwd("../input")
+#############################
+# list approach - store all models in a list and use lapply to do things to all
+
+load("DS2013AllMeansNewWithCTDFixHI.Robject")
+DS2013AllMeans$phenotype = as.factor(DS2013AllMeans$phenotype)
+DS2013AllMeans$phenotype  <- factor(DS2013AllMeans$phenotype , levels = 
+                                       c("DTF",
+                                         "DTH",
+                                         "biomass",
+                                         "height",
+                                         "grain",
+                                         "HI",
+                                         "CTD",
+                                         "Chla",
+                                         "HTPheight",
+                                         "NDRE",
+                                         "NDVI",
+                                         "NIR_760",
+                                         "R_670",
+                                         "RE_730"))
+DS2013AllMeans$pheno_rep_date = paste(DS2013AllMeans$phenotype, DS2013AllMeans$rep, DS2013AllMeans$date, sep="_")
+
+# get rid of raw phenos and dates we don't want
+rawspectra = c("NIR_760", "R_670", "RE_730", "grain", "HI")
+DS2013AllMeans2 = DS2013AllMeans
+DS2013AllMeans2 = subset(DS2013AllMeans2, !(phenotype %in% rawspectra))
+
+DS2013AllMeans2 = droplevels(DS2013AllMeans2)
+
+# save it for modeling
+as.data.frame(colnames(DS2013AllMeans2))
+DS2013AllMeans3 = DS2013AllMeans2[,c(1,2,3,4,8,5)]
+alldata = DS2013AllMeans3
+
+# make it wide.. by rep..
+alldatabyrepdate = dcast(alldata[,c(1,2,3,4,6)], line + rep + date ~ phenotype , value.var="mean", mean, na.rm=T)
+
+alldata = alldatabyrepdate
+
+# make list of phenotypes
+varlist = names(alldata)[4:ncol(alldata)]
+
+# make line and rep a factor
+alldata$line = as.factor(alldata$line)
+alldata$rep = as.factor(alldata$rep)
+
+# rename to make rest of code compatible..
+colnames(alldata)[colnames(alldata)=="line"] = "Line"
+
+# run random line and rep models
+models = lapply(varlist, function(x) { 
+  lmer(substitute(i ~ + (1 | Line) + (1 | rep), list(i=as.name(x))), data=alldata)
+})
+
+# name models in list..
+names(models) = varlist
+
+###################################################################################
+# examine models
+###################################################################################
+
+lapply(models, summary)
+lapply(models, AIC)
+lapply(models, getAICc)
+lapply(models, BIC)
+
+###################################################################################
+# get stuff from models
+###################################################################################
+
+varcomps = lapply(models, varcompsdf)
+varcompsall = ldply(varcomps, data.frame)
+# make new column for excel
+varcompsall$H2 = varcompsall$varPCT / 100
+# rename col
+colnames(varcompsall)[colnames(varcompsall)==".id"] = "phenotype"
+# round values
+varcompsall$H2 = formatC(round(varcompsall$H2, digits=2), 2, format="f")
+
+# export it
+setwd("../output")
+filename = addStampToFilename("DS2013VarComps", "tsv")
+write.table(varcompsall, file=filename, sep="\t", quote=F, row.names=F)
+
+```
+
+```{r fixedmodels, eval=F}
+###################################################################################
+# model phenotypes with line and rep fixed ... to get LSmeans
+###################################################################################
+# disable scientific notation
+options(scipen=999)
+
+alldata$Line = as.factor(alldata$Line)
+
+# get fixed effect models.. line and rep fixed..
+fixedmodels = lapply(varlist, function(x) { 
+  lm(substitute(i ~ Line + rep, list(i=as.name(x))), data=alldata)
+})
+
+# name models in list
+names(fixedmodels) = varlist
+
+###################################
+# updated for lsmeans version 2
+# see ref.grid class definition here around page 22
+# http://cran.r-project.org/web/packages/lsmeans/lsmeans.pdf
+
+# get lsmeans
+fixedmodels.lsmeans = lapply(fixedmodels, function(x) { lsmeans(x, ~ Line)})
+# convert list to dfs
+listlength = length(fixedmodels.lsmeans)
+
+# define empty df
+lsmeansdf = as.data.frame(setNames(replicate(7,numeric(0), simplify = F), c("Line", "lsmeans", "SE", "df", "lowerCI", "upperCI", "resp")))
+i=1
+# this error is ok.. just ignore it...
+#Error in make.link(misc$tran) : ‘+’ link not recognised
+for (i in 1:listlength) {
+   lsmeansdf = rbind(lsmeansdf, cbind(summary(fixedmodels.lsmeans[[i]]), list(resp=getrespname(fixedmodels[[i]]))))
+}
+
+# dcast it
+lsmeanswide = dcast(lsmeansdf, Line ~ resp, value.var="lsmean")
+# rename cols
+varlistlsmeans = lapply(varlist, function(x) {paste(x, "_LSmeans", sep="")})
+names(lsmeanswide) = c("Line", varlistlsmeans)
+colnames(lsmeanswide)[colnames(lsmeanswide)=="Line"] = "ID"
+filename = addStampToFilename("DS2013FinalLSmeanswithparents", "csv")
+#write.table(lsmeanswide, file=filename, sep=",", quote=F, row.names=F)
