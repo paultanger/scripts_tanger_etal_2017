@@ -151,7 +151,7 @@ here: https://www.ncbi.nlm.nih.gov/bioproject/PRJNA378634
 
 The keyfile to process the files is stored in the metadata file associated with the reads, and also included in the datadryad data package.
 
-tassel code final.txt contains the steps using tassel to process the reads.  The output (filtered.hmp.txt in the input directory) is used by these scripts in an iterative process importing and exporting from JoinMap to construct the final map (genotypematrixRestMapFinal_20150514_1239.csv)
+tassel code final.txt contains the steps using tassel to process the reads.  The output (filtered.hmp.txt in the input directory) is used by these scripts in an iterative process importing and exporting from JoinMap to construct the final map (genotypematrixRestMapFinal_20150514_1239.csv).  Also used by these scripts is a function from another R package that is associated with a manuscript in preparation and hosted here: https://github.com/mckaylab/TSPmap.  The functions used are finddups() and removedups().  More information about how to install that package and how to call the functions can be found at the github site.
 
 AfterGenMapFiltering
 AfterGenMapProcessing
